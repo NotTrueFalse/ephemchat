@@ -19,7 +19,7 @@ class EphemChat(QMainWindow):
 
     message_received = pyqtSignal(str, str)
     log_message = pyqtSignal(str)
-    contact_list_updated = pyqtSignal(dict)
+    contact_list_updated = pyqtSignal(dict, str)
     file_requested = pyqtSignal(str, int, str)
     file_progress_updated = pyqtSignal(str, float, int)
 
@@ -32,6 +32,7 @@ class EphemChat(QMainWindow):
         self.init_signals()
         self.init_client_events()
         self.initUI()
+        self.lst_address = None
         
     def init_signals(self):
         # Connect signals to GUI update methods
@@ -51,8 +52,8 @@ class EphemChat(QMainWindow):
             self.log_message.emit(message)
 
         @self.client.event
-        def on_contact_list_update(contacts: dict):
-            self.contact_list_updated.emit(contacts)
+        def on_contact_list_update(contacts: dict, my_address: str=None):
+            self.contact_list_updated.emit(contacts, my_address)
 
         @self.client.event
         def on_ask_file(sender: str, file_size: int, file_name: str):
@@ -70,8 +71,16 @@ class EphemChat(QMainWindow):
     def on_log_gui(self, message: str):
         self.log_list.addItem(message)
 
-    def on_contact_list_update_gui(self, contacts: list):
+    def on_contact_list_update_gui(self, contacts: list, my_address: str=None):
         self.contact_list.clear()
+        if my_address and self.lst_address:
+            # Find and remove only the item that contains my_address
+            for i in range(self.lst_address.count()):
+                item_text = self.lst_address.item(i).text()
+                if my_address in item_text:
+                    self.lst_address.takeItem(i)
+                    break
+            
         for contact in contacts:
             self.contact_list.addItem(contact)
 
@@ -157,10 +166,10 @@ class EphemChat(QMainWindow):
         label = QLabel("Your addresses and seeds:")
         layout.addWidget(label)
         
-        lst = QListWidget()
+        self.lst_address = QListWidget()
         for address, seed in self.client.address.items():
-            lst.addItem(f"{address}|{seed["seed"]}")
-        layout.addWidget(lst)
+            self.lst_address.addItem(f"{address}|{seed["seed"]}")
+        layout.addWidget(self.lst_address)
         
         dialog.setLayout(layout)
         dialog.exec_()

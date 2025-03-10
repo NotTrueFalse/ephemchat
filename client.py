@@ -65,8 +65,8 @@ class Client:
     def log(self, message: str):
         self.trigger_event('on_log', message)
 
-    def contact_update(self):
-        self.trigger_event('on_contact_list_update', self.contacts)
+    def contact_update(self,my_address:str=None):
+        self.trigger_event('on_contact_list_update', self.contacts, my_address)
 
     def ask_file(self, sender: str, file_size: int, file_name: str):
         self.trigger_event('on_ask_file', sender, file_size, file_name)
@@ -174,7 +174,7 @@ class Client:
             r = Shake256PRNG(main_key,debug=DEBUG==1)
             self.contacts[contact] = {"main_key":main_key,"random_iterator":r}
             self.log(f"You have a new contact: {contact}")
-            self.contact_update()
+            self.contact_update(to_addr)
             # print(f"main_key: {main_key}")#debug
             #now send accept message
             #0:1 -> OPCODE
@@ -231,7 +231,7 @@ class Client:
         self.contacts[contact] = self.contacts[contact_address].copy()
         del self.contacts[contact_address]#remove the random contact
         self.log(f"You have a new contact: {contact}")
-        self.contact_update()
+        self.contact_update(contact_address)
         return 1
 
     def chunk_generator(self, contact:str):
