@@ -16,7 +16,8 @@ MAIN_KEY_LENGTH = 32
 #used to find your partner: OTV (One Time Verifier added randomly to the message)
 ONE_TIME_LENGTH = 32
 #how many octets to use to store the n° order of a file chunk (a file chunk is 4096 (4063-CHUNK_INTORD_SIZE data, 32 ONE_TIME, 1 SENDING_OPCODE) octets long)
-#so in theory we can send a file of (2^(8*CHUNK_INTORD_SIZE)-1)*(4063-CHUNK_INTORD_SIZE)/(1024**4) Terra-octets before hitting the limit
+#so in theory we can send a file of (2^(8*CHUNK_INTORD_SIZE-1)-1)*(4063-CHUNK_INTORD_SIZE)/(1024**4) Terra-octets before hitting the limit
+#2^(8*CHUNK_INTORD_SIZE-1) because we're using signed int (1 bit for is used the sign)
 CHUNK_INTORD_SIZE = 8
 
 OK_OPCODE = b"\x01"
@@ -229,7 +230,10 @@ class Client:
             if not chunk:break
             chunk_num += 1
             # Make sure to use explicit byte ordering and fixed size for consistency
-            chunk_order = chunk_num.to_bytes(CHUNK_INTORD_SIZE, byteorder="big", signed=False)
+            chunk_order = chunk_num.to_bytes(CHUNK_INTORD_SIZE, byteorder="big", signed=True)
+            if len(chunk) < CHUNK_DATA_SIZE:
+                chunk = chunk + b"\x00" * (CHUNK_DATA_SIZE - len(chunk))#pad with 0 to match the size
+                chunk_order = (-1).to_bytes(CHUNK_INTORD_SIZE, byteorder="big", signed=True)
             yield chunk + chunk_order
 
     def check_received(self, contact:str, data:bytes):
@@ -272,8 +276,10 @@ class Client:
             if len(chunk_order_bytes) != CHUNK_INTORD_SIZE:#not good chunk order
                 self.log(f"[-] Chunk order bytes corrupted: expected {CHUNK_INTORD_SIZE}, got {len(chunk_order_bytes)}")
                 return
-            chunk_num = int.from_bytes(chunk_order_bytes, byteorder="big", signed=False)
+            chunk_num = int.from_bytes(chunk_order_bytes, byteorder="big", signed=True)
             chunk_data = chunk[:-CHUNK_INTORD_SIZE]
+            if chunk_num == -1:
+                chunk_data = chunk_data.rstrip(b"\x00")  # remove padding
             if DEBUG == 1:
                 print(f"recv: {chunk_data[:10]}, chunk_num: {chunk_num}, order_bytes: {chunk_order_bytes.hex()}, t: {time.time()}")   
             self.receive_queue[contact]["received"] += len(chunk_data)
@@ -297,6 +303,10 @@ class Client:
             elif contact in self.receive_queue:
                 #done receiving file
                 chunks = self.receive_queue[contact]["chunks"]
+                #put last chunk at the end
+                if "-1" in chunks:
+                    last_chunk_num = max(int(k) for k in chunks.keys())
+                    chunks[str(last_chunk_num+1)] = chunks.pop("-1")
                 file_name = self.receive_queue[contact]["file_name"]
                 file_size = self.receive_queue[contact]["file_size"]
                 with open(self.receive_queue[contact]["file_path"], "wb") as file:
