@@ -74,7 +74,7 @@ class EphemChat(QMainWindow):
     def on_contact_list_update_gui(self, contacts: list, my_address: str=None):
         self.contact_list.clear()
         if my_address and self.lst_address:
-            # Find and remove only the item that contains my_address
+            #check if self.lst_address is deleted or not
             for i in range(self.lst_address.count()):
                 item_text = self.lst_address.item(i).text()
                 if my_address in item_text:
@@ -169,6 +169,8 @@ class EphemChat(QMainWindow):
         self.lst_address = QListWidget()
         for address, seed in self.client.address.items():
             self.lst_address.addItem(f"{address}|{seed["seed"]}")
+        dialog.finished.connect(lambda: setattr(self, "lst_address", None))
+
         layout.addWidget(self.lst_address)
         
         dialog.setLayout(layout)
