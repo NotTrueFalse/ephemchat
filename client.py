@@ -2,11 +2,9 @@ import socket
 import os
 from argon2 import PasswordHasher
 from threading import Thread
-from hashlib import sha256
-import secrets
 from utils.CPRNG import Shake256PRNG
 from utils.AES import AES_Manager
-from utils.cool import to_humain_readable
+from utils.cool import to_humain_readable, generate_address
 import re
 import time
 
@@ -46,7 +44,7 @@ class Client:
         self.chunk_hash_logs = {}  # Store hashes for verification
         self.aes = AES_Manager()
         for i in range(10):
-            addr,seed = self.generate_address(),self.generate_address()
+            addr,seed = generate_address(ADDRESS_LENGTH),generate_address(ADDRESS_LENGTH)
             self.address[addr] = {"seed":seed}
         del addr,seed
         Thread(target=self.listen_packets, daemon=True).start()
@@ -131,17 +129,6 @@ class Client:
             return decrypted
         return False
 
-
-    def generate_address(self,length:int=ADDRESS_LENGTH)->str:
-        bytes = secrets.token_bytes(length)
-        allowed = (48,57),(64,64+26),(97,97+25)#0-9,A-Z,a-z+@
-        allowed = [list(range(i,j+1)) for i,j in allowed]
-        allowed = [chr(i) for i in sum(allowed,[])]
-        address = ""
-        for byte in bytes:
-            address += allowed[byte%len(allowed)]
-        return address
-
     def ask(self,data:bytes,offset:int)->int:
         #0:1 -> OPCODE
         #1:11 -> TO ADDRESS
@@ -180,7 +167,7 @@ class Client:
             #0:1 -> OPCODE
             #1:11 -> MY CONTACT ADDRESS
             #11:43 -> VERIFIER (hash of the main key)
-            contact_address = self.generate_address()
+            contact_address = generate_address(ADDRESS_LENGTH)
             null_iterator = Shake256PRNG(b"\x00")
             contact_address = self.aes.encrypt(contact_address, main_key,null_iterator)
             ph = PasswordHasher(
@@ -373,12 +360,12 @@ class Client:
             #     break
 
     def add_contact(self,address:str,seed:str):
-        me_contact = self.generate_address()
+        me_contact = generate_address(ADDRESS_LENGTH)
         null_iterator = Shake256PRNG(b"\x00")
         me_contact = self.aes.encrypt(me_contact, seed, null_iterator)
         main_key = os.urandom(MAIN_KEY_LENGTH)
         # print(f"main_key: {main_key}")#debug
-        idk_contact = self.generate_address()
+        idk_contact = generate_address(ADDRESS_LENGTH)
         r = Shake256PRNG(main_key,debug=DEBUG==1)
         self.contacts[idk_contact] = {"main_key":main_key,"random_iterator":r}#temporarly save a random contact instead of the real one
         null_iterator = Shake256PRNG(b"\x00")
