@@ -160,7 +160,7 @@ class Client:
             null_iterator = Shake256PRNG(b"\x00")
             main_key = self.aes.decrypt(main_key, self.address[to_addr]["seed"],null_iterator)#don't decode its mainly random bytes
             r = Shake256PRNG(main_key,debug=DEBUG==1)
-            self.contacts[contact] = {"main_key":main_key,"random_iterator":r}
+            self.contacts[contact] = {"main_key":main_key,"random_iterator":r,"nickname":contact}
             self.log(f"You have a new contact: {contact}")
             self.contact_update(to_addr)
             # print(f"main_key: {main_key}")#debug
@@ -218,6 +218,7 @@ class Client:
         contact = self.aes.decrypt(contact, p, null_iterator).decode("utf-8")#replace random contact with the real one
         self.contacts[contact] = self.contacts[contact_address].copy()
         del self.contacts[contact_address]#remove the random contact
+        self.contacts[contact]["nickname"] = contact
         self.log(f"You have a new contact: {contact}")
         self.contact_update(contact_address)
         return 1
@@ -377,7 +378,7 @@ class Client:
         # print(f"main_key: {main_key}")#debug
         idk_contact = generate_address(ADDRESS_LENGTH)
         r = Shake256PRNG(main_key,debug=DEBUG==1)
-        self.contacts[idk_contact] = {"main_key":main_key,"random_iterator":r}#temporarly save a random contact instead of the real one
+        self.contacts[idk_contact] = {"main_key":main_key,"random_iterator":r,"nickname":idk_contact}#temporarly save a random contact instead of the real one
         null_iterator = Shake256PRNG(b"\x00")
         main_key = self.aes.encrypt(main_key, seed, null_iterator)
         payload = ASK_OPCODE + address.encode("utf-8") + me_contact + main_key

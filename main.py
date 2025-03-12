@@ -33,6 +33,7 @@ class EphemChat(QMainWindow):
         self.init_client_events()
         self.initUI()
         self.lst_address = None
+        self.setup_contact_menu()  # Set up the contact context menu
         
     def init_signals(self):
         # Connect signals to GUI update methods
@@ -66,12 +67,13 @@ class EphemChat(QMainWindow):
 
     # Slots (GUI updates happen here)
     def on_message_gui(self, sender: str, message: str):
+        sender = self.client.contacts[sender]["nickname"] if sender in self.client.contacts else sender
         self.chat.append(f"{sender}: {message}")
 
     def on_log_gui(self, message: str):
         self.log_list.addItem(message)
 
-    def on_contact_list_update_gui(self, contacts: list, my_address: str=None):
+    def on_contact_list_update_gui(self, contacts: dict, my_address: str=None):
         self.contact_list.clear()
         if my_address and self.lst_address:
             #check if self.lst_address is deleted or not
@@ -81,8 +83,12 @@ class EphemChat(QMainWindow):
                     self.lst_address.takeItem(i)
                     break
             
-        for contact in contacts:
-            self.contact_list.addItem(contact)
+        for _contact in contacts:
+            contact = contacts[_contact]
+            item = QListWidgetItem(contact["nickname"] if contact["nickname"] else _contact)
+            # Store the actual contact address as item data
+            item.setData(Qt.UserRole, _contact)
+            self.contact_list.addItem(item)
 
     def on_ask_file_gui(self, sender: str, file_size: int, file_name: str):
         self.log_list.addItem(f"{sender} wants to send {file_name} ({to_humain_readable(file_size)})")
@@ -271,8 +277,46 @@ class EphemChat(QMainWindow):
             QMessageBox.warning(self, "No Contact Selected", "Please select a contact from the list.")
             return None
 
-        contact = contact_item.text()
+        nickname = contact_item.text()
+        contact = [c for c in self.client.contacts if self.client.contacts[c]["nickname"] == nickname]
+        contact = contact[0] if contact else None
         return contact
+
+    def setup_contact_menu(self):
+        """Setup the context menu for the contact list"""
+        self.contact_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.contact_list.customContextMenuRequested.connect(self.show_contact_context_menu)
+    
+    def show_contact_context_menu(self, position):
+        """Display the context menu when right-clicking a contact"""
+        item = self.contact_list.itemAt(position)
+        if not item:
+            return
+            
+        menu = QMenu(self)
+        edit_username_action = menu.addAction("Edit Username")
+        
+        action = menu.exec_(self.contact_list.viewport().mapToGlobal(position))
+        
+        if action == edit_username_action:
+            self.edit_contact_username(item)
+    
+    def edit_contact_username(self, item):
+        """Edit the selected contact's username"""
+        address = item.data(Qt.UserRole)
+        current_name = item.text()
+        
+        new_name, ok = QInputDialog.getText(
+            self, "Edit Username", "Enter new username:", 
+            QLineEdit.Normal, current_name
+        )
+        
+        if ok and new_name:
+            # Update the username in the client's contacts dictionary
+            if address in self.client.contacts:
+                self.client.contacts[address]["nickname"] = new_name
+                item.setText(new_name)
+                self.chat.append(f"Username for {address} changed to: {new_name}")
 
 
 if __name__ == "__main__":
